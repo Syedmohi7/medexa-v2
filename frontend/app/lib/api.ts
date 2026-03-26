@@ -4,11 +4,12 @@ import axios from 'axios';
  * Backend base URL
  * 👉 MUST be: https://medexa-v2.onrender.com/api
  */
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 /* ================= AXIOS CLIENT ================= */
 const apiClient = axios.create({
-  baseURL: API_URL, // ✅ FIXED (NO /api again)
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -47,38 +48,39 @@ export default apiClient;
 
 /* ================= AUTH APIs ================= */
 export const authAPI = {
-  register: (data) => apiClient.post('/auth/register', data),
-  login: (data) => apiClient.post('/auth/login', data),
+  register: (data: any) => apiClient.post('/auth/register', data),
+  login: (data: any) => apiClient.post('/auth/login', data),
   getMe: () => apiClient.get('/auth/me'),
 };
 
 /* ================= USER APIs ================= */
 export const userAPI = {
-  updateProfile: (data) => apiClient.put('/users/profile', data),
+  updateProfile: (data: any) => apiClient.put('/users/profile', data),
   getDashboard: () => apiClient.get('/users/dashboard'),
 };
 
 /* ================= CHAT APIs ================= */
 export const chatAPI = {
-  sendMessage: (data) => apiClient.post('/chat/message', data),
-  getHistory: (sessionId) =>
+  sendMessage: (data: any) => apiClient.post('/chat/message', data),
+  getHistory: (sessionId?: string) =>
     apiClient.get(`/chat/history${sessionId ? `?sessionId=${sessionId}` : ''}`),
   getSessions: () => apiClient.get('/chat/sessions'),
-  deleteSession: (sessionId) =>
+  deleteSession: (sessionId: string) =>
     apiClient.delete(`/chat/session/${sessionId}`),
 };
 
 /* ================= SYMPTOM APIs ================= */
 export const symptomAPI = {
-  analyze: (data) => apiClient.post('/symptoms/analyze', data),
-  getHistory: (params) => apiClient.get('/symptoms/history', { params }),
+  analyze: (data: any) => apiClient.post('/symptoms/analyze', data),
+  getHistory: (params?: any) =>
+    apiClient.get('/symptoms/history', { params }),
   getStats: () => apiClient.get('/symptoms/stats'),
 };
 
 /* ================= RECOMMENDATION APIs ================= */
 export const recommendationAPI = {
   get: () => apiClient.get('/recommendations'),
-  getExercises: (params) =>
+  getExercises: (params?: any) =>
     apiClient.get('/recommendations/exercises', { params }),
 };
 
@@ -86,45 +88,54 @@ export const recommendationAPI = {
 export const reportAPI = {
   downloadPDF: async () => {
     const token = localStorage.getItem('token');
+
     const response = await fetch(`${API_URL}/reports/pdf`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `MEDEXA_Report_${Date.now()}.pdf`;
     link.click();
+
+    window.URL.revokeObjectURL(url);
   },
 
   downloadCSV: async () => {
     const token = localStorage.getItem('token');
+
     const response = await fetch(`${API_URL}/reports/csv`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `MEDEXA_Report_${Date.now()}.csv`;
     link.click();
+
+    window.URL.revokeObjectURL(url);
   },
 };
 
 /* ================= ADMIN APIs ================= */
-/* ================= ADMIN APIs ================= */
-export const adminAPI = {
+export const adminAPI: any = {
   getDashboard: () => apiClient.get('/admin/dashboard'),
   getUsers: (params?: any) => apiClient.get('/admin/users', { params }),
-  getUserDetails: (userId: string) => apiClient.get(`/admin/users/${userId}`),
+  getUserDetails: (userId: string) =>
+    apiClient.get(`/admin/users/${userId}`),
   toggleUserStatus: (userId: string) =>
     apiClient.put(`/admin/users/${userId}/toggle-status`),
   getChats: (params?: any) => apiClient.get('/admin/chats', { params }),
-  getSymptoms: (params?: any) => apiClient.get('/admin/symptoms', { params }),
+  getSymptoms: (params?: any) =>
+    apiClient.get('/admin/symptoms', { params }),
 
-  // ✅ ADD THIS (IMPORTANT)
+  // ✅ FIXED (NO DOUBLE /api)
   exportUsers: async () => {
     try {
       const token =
@@ -133,7 +144,7 @@ export const adminAPI = {
           : null;
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/export/users`,
+        `${API_URL}/admin/export/users`,
         {
           method: 'GET',
           headers: {
@@ -142,36 +153,33 @@ export const adminAPI = {
         }
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to export users');
-      }
+      if (!response.ok) throw new Error('Failed');
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
 
       const link = document.createElement('a');
       link.href = url;
-      link.download = `medexa_users_${Date.now()}.csv`;
-      document.body.appendChild(link);
+      link.download = `users_${Date.now()}.csv`;
       link.click();
-      link.remove();
 
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export error:', error);
-      alert('Failed to export users');
+    } catch (err) {
+      console.error(err);
+      alert('Export failed');
     }
   },
 };
 
 /* ================= ANALYSIS APIs ================= */
 export const analysisAPI = {
-  analyzePrescription: (data) =>
+  analyzePrescription: (data: any) =>
     apiClient.post('/analysis/prescription', data),
-  analyzeLabReport: (data) =>
+  analyzeLabReport: (data: any) =>
     apiClient.post('/analysis/lab-report', data),
-  getHistory: (type) =>
+  getHistory: (type?: string) =>
     apiClient.get('/analysis/history', { params: { type } }),
-  getAnalysis: (id) => apiClient.get(`/analysis/${id}`),
-  deleteAnalysis: (id) => apiClient.delete(`/analysis/${id}`),
+  getAnalysis: (id: string) => apiClient.get(`/analysis/${id}`),
+  deleteAnalysis: (id: string) =>
+    apiClient.delete(`/analysis/${id}`),
 };
