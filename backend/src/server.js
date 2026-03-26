@@ -18,64 +18,59 @@ const analysisRoutes = require('./routes/analysis.routes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB
+// Connect DB
 connectDB();
 
-// Trust proxy (for Railway, Heroku, etc.)
+// Trust proxy
 app.set('trust proxy', 1);
 
-// Security middleware
+// Security
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// ✅ FIXED CORS CONFIG (ONLY CHANGE)
+// ✅ FINAL CORS FIX
 const allowedOrigins = [
   'http://localhost:3000',
-  process.env.CLIENT_URL
+  'https://medexa-v2.vercel.app' // 🔥 IMPORTANT: hardcode your frontend URL
 ];
 
-const corsOptions = {
+app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) return callback(null, true); // allow Postman
+
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('❌ Blocked by CORS:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
+  credentials: true
+}));
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // ✅ important
+// ✅ Handle preflight
+app.options('*', cors());
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
-const limiter = rateLimit({
+app.use('/api/', rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
+  max: 100
+}));
 
-// Health check endpoint
+// Health
 app.get('/health', (req, res) => {
-  res.status(200).json({
+  res.json({
     success: true,
-    message: 'MEDEXA API is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    message: 'MEDEXA API running'
   });
 });
 
-// API Routes
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);
@@ -85,7 +80,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/analysis', analysisRoutes);
 
-// 404 handler
+// 404
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -94,66 +89,22 @@ app.use('*', (req, res) => {
   });
 });
 
-// Global error handler
+// Error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  
-  res.status(err.status || 500).json({
+  console.error('❌ Error:', err.message);
+  res.status(500).json({
     success: false,
-    message: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: err.message
   });
 });
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║   🏥 MEDEXA - AI-Powered Healthcare Platform                  ║
-║                                                               ║
-║   🚀 Server running on port ${PORT.toString().padEnd(37)}║
-║   🌍 Environment: ${(process.env.NODE_ENV || 'development').padEnd(43)}║
-║   💊 Health Check: /health                                    ║
-║   📊 API Base: /api                                           ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
-  `);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('👋 SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('👋 SIGINT received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
-  });
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Promise Rejection:', err);
-  server.close(() => {
-    console.log('Server closed due to unhandled rejection');
-    process.exit(1);
-  });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-  server.close(() => {
-    console.log('Server closed due to uncaught exception');
-    process.exit(1);
-  });
-});
+// Shutdown
+process.on('SIGTERM', () => server.close(() => process.exit(0)));
+process.on('SIGINT', () => server.close(() => process.exit(0)));
 
 module.exports = app;
