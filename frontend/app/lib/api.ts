@@ -114,12 +114,54 @@ export const reportAPI = {
 };
 
 /* ================= ADMIN APIs ================= */
+/* ================= ADMIN APIs ================= */
 export const adminAPI = {
   getDashboard: () => apiClient.get('/admin/dashboard'),
-  getUsers: (params) => apiClient.get('/admin/users', { params }),
-  getUserDetails: (id) => apiClient.get(`/admin/users/${id}`),
-  toggleUserStatus: (id) =>
-    apiClient.put(`/admin/users/${id}/toggle-status`),
+  getUsers: (params?: any) => apiClient.get('/admin/users', { params }),
+  getUserDetails: (userId: string) => apiClient.get(`/admin/users/${userId}`),
+  toggleUserStatus: (userId: string) =>
+    apiClient.put(`/admin/users/${userId}/toggle-status`),
+  getChats: (params?: any) => apiClient.get('/admin/chats', { params }),
+  getSymptoms: (params?: any) => apiClient.get('/admin/symptoms', { params }),
+
+  // ✅ ADD THIS (IMPORTANT)
+  exportUsers: async () => {
+    try {
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('token')
+          : null;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/export/users`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to export users');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `medexa_users_${Date.now()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export users');
+    }
+  },
 };
 
 /* ================= ANALYSIS APIs ================= */
