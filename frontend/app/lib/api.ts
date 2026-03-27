@@ -17,7 +17,7 @@ const apiClient = axios.create({
 
 /* ================= REQUEST INTERCEPTOR ================= */
 apiClient.interceptors.request.use(
-  (config) => {
+  (config: any) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       if (token) {
@@ -26,13 +26,13 @@ apiClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error: any) => Promise.reject(error)
 );
 
 /* ================= RESPONSE INTERCEPTOR ================= */
 apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: any) => response,
+  (error: any) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
@@ -135,7 +135,7 @@ export const adminAPI: any = {
   getSymptoms: (params?: any) =>
     apiClient.get('/admin/symptoms', { params }),
 
-  // ✅ FIXED (NO DOUBLE /api)
+  // ✅ FINAL FIX
   exportUsers: async () => {
     try {
       const token =
@@ -143,15 +143,12 @@ export const adminAPI: any = {
           ? localStorage.getItem('token')
           : null;
 
-      const response = await fetch(
-        `${API_URL}/admin/export/users`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/admin/export/users`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) throw new Error('Failed');
 
