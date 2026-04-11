@@ -94,7 +94,7 @@ Your support motivates me to build more impactful projects 🚀
 
 ## 🙌 Connect With Me
 
-👨‍💻 **Syed Mohi (Syed Jeelani)**  
+👨‍💻 **Syed Mohi**  
 📧 syedmohi2003@gmail.com  
 
 💼 Open to opportunities in **Data Science | AI | Data Analyst |Full Stack Development with Ai 🤖 **
