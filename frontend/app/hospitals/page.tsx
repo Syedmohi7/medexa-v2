@@ -2,16 +2,89 @@
 import { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import ProtectedRoute from '../components/ProtectedRoute';
-import { 
-  MapPin, 
-  Phone, 
-  Clock, 
-  Navigation, 
-  Loader, 
-  Plus, 
-  PhoneCall, 
-  Compass 
+import {
+  MapPin,
+  Phone,
+  Clock,
+  Navigation,
+  Loader,
+  Plus,
+  PhoneCall,
+  Compass,
 } from 'lucide-react';
+
+// Central Hyderabad fallback coordinates
+const DEFAULT_LOCATION = { lat: 17.385044, lng: 78.486671 };
+
+// Always-available sample data so the page never shows fewer than 6 cards
+const SAMPLE_HOSPITALS = [
+  {
+    name: 'Apollo Hospital',
+    address: 'Jubilee Hills, Hyderabad',
+    phone: '+914023607777',
+    distance: '2.5',
+    type: 'Hospital',
+    emergency: true,
+    hours: '24/7',
+    lat: 17.4326,
+    lon: 78.4071,
+  },
+  {
+    name: 'Yashoda Hospitals',
+    address: 'Somajiguda, Hyderabad',
+    phone: '+914045674567',
+    distance: '3.1',
+    type: 'Hospital',
+    emergency: true,
+    hours: '24/7',
+    lat: 17.4157,
+    lon: 78.4614,
+  },
+  {
+    name: 'KIMS Hospital',
+    address: 'Kondapur, Hyderabad',
+    phone: '+914044885000',
+    distance: '3.8',
+    type: 'Hospital',
+    emergency: true,
+    hours: '24/7',
+    lat: 17.4655,
+    lon: 78.3776,
+  },
+  {
+    name: 'Care Hospitals',
+    address: 'Banjara Hills, Hyderabad',
+    phone: '+914061651000',
+    distance: '4.2',
+    type: 'Hospital',
+    emergency: true,
+    hours: '24/7',
+    lat: 17.4126,
+    lon: 78.4441,
+  },
+  {
+    name: 'Continental Hospitals',
+    address: 'Gachibowli, Hyderabad',
+    phone: '+914067000000',
+    distance: '5.0',
+    type: 'Hospital',
+    emergency: true,
+    hours: '24/7',
+    lat: 17.4116,
+    lon: 78.3487,
+  },
+  {
+    name: 'Sunshine Hospitals',
+    address: 'Secunderabad, Hyderabad',
+    phone: '+914044668877',
+    distance: '5.6',
+    type: 'Hospital',
+    emergency: true,
+    hours: '24/7',
+    lat: 17.4399,
+    lon: 78.4983,
+  },
+];
 
 export default function HospitalsPage() {
   const [hospitals, setHospitals] = useState<any[]>([]);
@@ -21,6 +94,7 @@ export default function HospitalsPage() {
 
   useEffect(() => {
     getUserLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getUserLocation = () => {
@@ -28,8 +102,9 @@ export default function HospitalsPage() {
     setError('');
 
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      setLoading(false);
+      setError('Geolocation is not supported by your browser. Showing central Hyderabad area.');
+      setUserLocation(DEFAULT_LOCATION);
+      fetchNearbyHospitals(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
       return;
     }
 
@@ -42,64 +117,114 @@ export default function HospitalsPage() {
         setUserLocation(location);
         fetchNearbyHospitals(location.lat, location.lng);
       },
-      () => {
-        setError('Unable to get your location. Showing central Hyderabad area.');
-        setLoading(false);
-
-        const defaultLocation = { lat: 17.385044, lng: 78.486671 };
-        setUserLocation(defaultLocation);
-        fetchNearbyHospitals(defaultLocation.lat, defaultLocation.lng);
+      (geoError) => {
+        // Give a specific reason instead of a generic message
+        let message = 'Unable to get your location. Showing central Hyderabad area.';
+        if (geoError.code === geoError.PERMISSION_DENIED) {
+          message = 'Location access denied. Showing central Hyderabad area.';
+        } else if (geoError.code === geoError.TIMEOUT) {
+          message = 'Location request timed out. Showing central Hyderabad area.';
+        } else if (geoError.code === geoError.POSITION_UNAVAILABLE) {
+          message = 'Location unavailable. Showing central Hyderabad area.';
+        }
+        setError(message);
+        setUserLocation(DEFAULT_LOCATION);
+        fetchNearbyHospitals(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
       }
     );
   };
 
   const fetchNearbyHospitals = async (lat: number, lng: number) => {
+    setLoading(true);
+
+    // Try progressively larger radii until we have at least 6 results
+    const radii = [5000, 10000, 20000];
+
     try {
-      const radius = 5000;
-      const query = `
-        [out:json];
-        (
-          node["amenity"="hospital"](around:${radius},${lat},${lng});
-          way["amenity"="hospital"](around:${radius},${lat},${lng});
-          node["amenity"="clinic"](around:${radius},${lat},${lng});
-          way["amenity"="clinic"](around:${radius},${lat},${lng});
-        );
-        out body;
-      `;
+      let hospitalsList: any[] = [];
 
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: query,
-      });
+      for (const radius of radii) {
+        const query = `
+          [out:json][timeout:15];
+          (
+            node["amenity"="hospital"](around:${radius},${lat},${lng});
+            way["amenity"="hospital"](around:${radius},${lat},${lng});
+            node["amenity"="clinic"](around:${radius},${lat},${lng});
+            way["amenity"="clinic"](around:${radius},${lat},${lng});
+          );
+          out center body;
+        `;
 
-      const data = await response.json();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const hospitalsList = data.elements
-        .map((element: any) => {
-          const elementLat = element.lat || (element.center && element.center.lat);
-          const elementLon = element.lon || (element.center && element.center.lon);
-          const distance = calculateDistance(lat, lng, elementLat, elementLon);
+        const response = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: query,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
 
-          return {
-            name: element.tags?.name || 'Medical Facility',
-            address: formatAddress(element.tags),
-            phone:
-              element.tags?.phone ||
-              element.tags?.['contact:phone'] ||
-              'Contact not found',
-            distance: distance.toFixed(1),
-            type: element.tags?.amenity === 'hospital' ? 'Hospital' : 'Clinic',
-            emergency: element.tags?.emergency === 'yes',
-            hours: element.tags?.opening_hours || '24/7 Service',
-            lat: elementLat,
-            lon: elementLon,
-          };
-        })
-        .sort((a: any, b: any) => parseFloat(a.distance) - parseFloat(b.distance));
+        if (!response.ok) {
+          throw new Error(`Overpass request failed with status ${response.status}`);
+        }
 
-      setHospitals(hospitalsList.slice(0, 12));
-    } catch {
-      setError('Failed to load live data. Displaying saved facilities.');
+        const data = await response.json();
+
+        hospitalsList = data.elements
+          .map((element: any) => {
+            const elementLat = element.lat ?? element.center?.lat;
+            const elementLon = element.lon ?? element.center?.lon;
+            if (elementLat == null || elementLon == null) return null;
+
+            const distance = calculateDistance(lat, lng, elementLat, elementLon);
+
+            return {
+              name: element.tags?.name || 'Medical Facility',
+              address: formatAddress(element.tags),
+              phone:
+                element.tags?.phone ||
+                element.tags?.['contact:phone'] ||
+                'Contact not found',
+              distance: distance.toFixed(1),
+              type: element.tags?.amenity === 'hospital' ? 'Hospital' : 'Clinic',
+              emergency: element.tags?.emergency === 'yes',
+              hours: element.tags?.opening_hours || '24/7 Service',
+              lat: elementLat,
+              lon: elementLon,
+            };
+          })
+          .filter((h: any) => h !== null)
+          .sort((a: any, b: any) => parseFloat(a.distance) - parseFloat(b.distance));
+
+        // Stop expanding the radius once we have enough results
+        if (hospitalsList.length >= 6) break;
+      }
+
+      if (hospitalsList.length === 0) {
+        // No live data at any radius — fall back to samples
+        setError('No live facilities found nearby. Showing sample facilities for Hyderabad.');
+        loadSampleHospitals();
+      } else if (hospitalsList.length < 6) {
+        // Pad with samples (excluding duplicates by name) so we always show 6
+        const padded = [...hospitalsList];
+        for (const sample of SAMPLE_HOSPITALS) {
+          if (padded.length >= 6) break;
+          if (!padded.some((h) => h.name === sample.name)) {
+            padded.push(sample);
+          }
+        }
+        setHospitals(padded.slice(0, 12));
+      } else {
+        setHospitals(hospitalsList.slice(0, 12));
+      }
+    } catch (err) {
+      setError('Failed to load live data. Showing sample facilities for Hyderabad.');
       loadSampleHospitals();
     } finally {
       setLoading(false);
@@ -108,9 +233,9 @@ export default function HospitalsPage() {
 
   const formatAddress = (tags: any) => {
     const parts = [];
-    if (tags['addr:street']) parts.push(tags['addr:street']);
-    if (tags['addr:city']) parts.push(tags['addr:city']);
-    if (tags['addr:state']) parts.push(tags['addr:state']);
+    if (tags?.['addr:street']) parts.push(tags['addr:street']);
+    if (tags?.['addr:city']) parts.push(tags['addr:city']);
+    if (tags?.['addr:state']) parts.push(tags['addr:state']);
     return parts.length ? parts.join(', ') : 'Location details in maps';
   };
 
@@ -127,24 +252,14 @@ export default function HospitalsPage() {
   };
 
   const loadSampleHospitals = () => {
-    setHospitals([
-      {
-        name: 'Apollo Hospital',
-        address: 'Jubilee Hills, Hyderabad',
-        phone: '+91 40 2360 7777',
-        distance: '2.5',
-        type: 'Hospital',
-        emergency: true,
-        hours: '24/7',
-        lat: 17.4326,
-        lon: 78.4071,
-      },
-    ]);
+    setHospitals(SAMPLE_HOSPITALS);
   };
 
   const openInMaps = (lat: number, lon: number) => {
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
   };
+
+  const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`;
 
   return (
     <ProtectedRoute>
@@ -152,7 +267,7 @@ export default function HospitalsPage() {
         <Sidebar />
 
         <div className="flex-1 md:ml-64 px-4 md:px-8 pt-24 md:pt-10 pb-10 overflow-y-auto h-screen">
-          
+
           {/* GLASS HEADER */}
           <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-[2.5rem] p-8 mb-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -168,11 +283,12 @@ export default function HospitalsPage() {
                 </p>
               </div>
             </div>
-            <button 
-                onClick={getUserLocation} 
-                className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-blue-700 rounded-2xl font-black text-sm hover:bg-blue-50 active:scale-95 transition-all shadow-xl"
+            <button
+              onClick={getUserLocation}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-blue-700 rounded-2xl font-black text-sm hover:bg-blue-50 active:scale-95 transition-all shadow-xl disabled:opacity-60"
             >
-              <Navigation className="h-5 w-5 fill-current" />
+              <Navigation className={`h-5 w-5 fill-current ${loading ? 'animate-pulse' : ''}`} />
               REFRESH LOCATION
             </button>
           </div>
@@ -198,8 +314,8 @@ export default function HospitalsPage() {
                       <Plus className="text-blue-600 group-hover:text-white transition-colors" size={24} />
                     </div>
                     <div className="text-right">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Distance</p>
-                        <p className="text-xl font-black text-[#2563eb]">{hospital.distance} KM</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Distance</p>
+                      <p className="text-xl font-black text-[#2563eb]">{hospital.distance} KM</p>
                     </div>
                   </div>
 
@@ -223,9 +339,9 @@ export default function HospitalsPage() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <a 
-                        href={`tel:${hospital.phone}`} 
-                        className="flex-1 bg-[#2563eb] text-white py-4 rounded-2xl font-black text-center shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                    <a
+                      href={telHref(hospital.phone)}
+                      className="flex-1 bg-[#2563eb] text-white py-4 rounded-2xl font-black text-center shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
                     >
                       CALL NOW 📞
                     </a>
