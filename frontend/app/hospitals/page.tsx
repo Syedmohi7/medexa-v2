@@ -346,6 +346,7 @@ export default function HospitalsPage() {
                       CALL NOW 📞
                     </a>
                     <button
+                      onClick={() => openInMaps(hospital.lat, hospital.lon)}
                       
                       className="flex-1 bg-slate-50 text-slate-900 py-4 rounded-2xl font-black shadow-inner hover:bg-slate-100 active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
